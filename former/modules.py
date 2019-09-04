@@ -52,6 +52,8 @@ class SelfAttention(nn.Module):
         keys = keys / (e ** (1 / 4))
         # - Instead of dividing the dot products by sqrt(e), we scale the keys and values.
         #   This should be more memory efficient
+        # see https://github.com/pbloem/former/issues/5 for explanation on
+        # when this would be more memory efficient - e.g. when t >> e
 
         # - get dot product of queries and keys, and scale
         dot = torch.bmm(queries, keys.transpose(1, 2))
@@ -62,9 +64,8 @@ class SelfAttention(nn.Module):
             t,
         ), f"Matrix has size {dot.size()}, expected {(b*h, t, t)}."
 
-        if (
-            self.mask
-        ):  # mask out the lower half of the dot matrix,including the diagonal
+        if self.mask:
+            # mask out the upper half of the dot matrix, excluding the diagonal
             mask_(dot, maskval=float("-inf"), mask_diagonal=False)
 
         dot = F.softmax(

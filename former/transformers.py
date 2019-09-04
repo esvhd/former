@@ -139,9 +139,11 @@ class TSTransformer(nn.Module):
     """
     Transformer for classifying sequences
     """
+
     def __init__(
         self,
         # emb,
+        feature_dim,
         heads,
         depth,
         seq_length,
@@ -151,18 +153,23 @@ class TSTransformer(nn.Module):
         dropout=0.0,
     ):
         """
+        A time series transfomrmer that can handle both numerical and
+        categorical features. Cat features are converted into entity embeddings.
+
         :param emb: Embedding dimension
         :param heads: nr. of attention heads
         :param depth: Number of transformer blocks
         :param seq_length: Expected maximum sequence length
         # :param num_tokens: Number of tokens (usually words) in the vocabulary
         :param num_classes: Number of classes.
-        :param max_pool: If true, use global max pooling in the last layer. If false, use global
+        :param max_pool: If true, use global max pooling in the last layer.
+            If false, use global
                          average pooling.
         """
         super().__init__()
 
-        self.num_tokens, self.max_pool = num_tokens, max_pool
+        # self.num_tokens = num_tokens
+        self.max_pool = max_pool
 
         # don't need token embedding as input is numerical, but with dim > 1
         # self.token_embedding = nn.Embedding(
@@ -170,39 +177,41 @@ class TSTransformer(nn.Module):
         # )
         # how to use positional embedding?
         self.pos_embedding = nn.Embedding(
-            embedding_dim=emb, num_embeddings=seq_length
+            embedding_dim=feature_dim, num_embeddings=seq_length
         )
 
         tblocks = []
         for i in range(depth):
             tblocks.append(
                 TransformerBlock(
-                    emb=emb,
+                    emb=feature_dim,
                     heads=heads,
                     seq_length=seq_length,
-                    mask=False,
+                    mask=True,
                     dropout=dropout,
                 )
             )
 
         self.tblocks = nn.Sequential(*tblocks)
 
-        self.toprobs = nn.Linear(emb, num_classes)
+        self.toprobs = nn.Linear(feature_dim, num_classes)
 
         self.do = nn.Dropout(dropout)
 
     def forward(self, x):
         """
         :param x: A batch by sequence length integer tensor of token indices.
-        :return: predicted log-probability vectors for each token based on the preceding tokens.
+        :return: predicted log-probability vectors for each token based on the
+        preceding tokens.
         """
-        tokens = self.token_embedding(x)
-        b, t, e = tokens.size()
+        # tokens = self.token_embedding(x)
+        # b, t, e = tokens.size()
+        b, t, e = x.shape
 
         positions = self.pos_embedding(torch.arange(t, device=d()))[
             None, :, :
         ].expand(b, t, e)
-        x = tokens + positions
+        x = x + positions
         x = self.do(x)
 
         x = self.tblocks(x)
