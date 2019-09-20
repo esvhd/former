@@ -5,7 +5,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-import random, math
+# import random,
+import math
 
 
 class SelfAttention(nn.Module):
@@ -48,12 +49,18 @@ class SelfAttention(nn.Module):
         queries = queries.transpose(1, 2).contiguous().view(b * h, t, e)
         values = values.transpose(1, 2).contiguous().view(b * h, t, e)
 
-        queries = queries / (e ** (1 / 4))
-        keys = keys / (e ** (1 / 4))
-        # - Instead of dividing the dot products by sqrt(e), we scale the keys and values.
-        #   This should be more memory efficient
+        # replaced original code that divides both queries and keys
+        # doing it once is enough and produces the same results since
+        # they are multiplied together.
+        queries = queries / math.sqrt(e)
+        # queries = queries / math.pow(e, 0.25)
+        # keys = keys / math.pow(e, 0.25)
+
+        # Instead of dividing the dot products by sqrt(e), we scale the keys
+        # and values.
+        # This should be more memory efficient
         # see https://github.com/pbloem/former/issues/5 for explanation on
-        # when this would be more memory efficient - e.g. when t >> e
+        # when this would be more memory efficient - i.e. when t >> e
 
         # - get dot product of queries and keys, and scale
         dot = torch.bmm(queries, keys.transpose(1, 2))
@@ -68,19 +75,19 @@ class SelfAttention(nn.Module):
             # mask out the upper half of the dot matrix, excluding the diagonal
             mask_(dot, maskval=float("-inf"), mask_diagonal=False)
 
-        dot = F.softmax(
-            dot, dim=2
-        )  # dot now has row-wise self-attention probabilities
+        dot = F.softmax(dot, dim=2)
+        # dot now has row-wise self-attention probabilities
 
-        assert not util.contains_nan(
-            dot[:, 1:, :]
-        )  # only the forst row may contain nan
+        # assert not util.contains_nan(dot[:, 1:, :])
+        # assert not torch.isnan(dot[:, 1:, :]).any()
+        # only the forst row may contain nan
 
-        if self.mask == "first":
-            dot = dot.clone()
-            dot[:, :1, :] = 0.0
-            # - The first row of the first attention matrix is entirely masked out, so the softmax operation results
-            #   in a division by zero. We set this row to zero by hand to get rid of the NaNs
+        # if self.mask == "first":
+        #     dot = dot.clone()
+        #     dot[:, :1, :] = 0.0
+        #     # The first row of the first attention matrix is entirely masked
+        #     # out, so the softmax operation results in a division by zero.
+        #     # We set this row to zero by hand to get rid of the NaNs
 
         # apply the self attention to the values
         out = torch.bmm(dot, values).view(b, h, t, e)
