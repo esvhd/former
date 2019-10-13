@@ -43,7 +43,8 @@ class GTransformer(nn.Module):
         tokens = self.token_embedding(x)
         b, t, e = tokens.size()
 
-        positions = self.pos_embedding(torch.arange(t, device=d()))[
+        # original device is set to d()
+        positions = self.pos_embedding(torch.arange(t, device=tokens.device))[
             None, :, :
         ].expand(b, t, e)
         x = tokens + positions
@@ -118,7 +119,7 @@ class CTransformer(nn.Module):
         tokens = self.token_embedding(x)
         b, t, e = tokens.size()
 
-        positions = self.pos_embedding(torch.arange(t, device=d()))[
+        positions = self.pos_embedding(torch.arange(t, device=tokens.device))[
             None, :, :
         ].expand(b, t, e)
         x = tokens + positions
@@ -229,6 +230,7 @@ class TSRegTransformer(nn.Module):
     """
     Transformer for regression problems.
     """
+
     def __init__(
         self,
         # emb,
@@ -298,7 +300,8 @@ class TSRegTransformer(nn.Module):
         # b, t, e = tokens.size()
         b, t, e = x.shape
 
-        positions = self.pos_embedding(torch.arange(t, device=d()))[
+        # place positional encoding onto the same device
+        positions = self.pos_embedding(torch.arange(t, device=x.device))[
             None, :, :
         ].expand(b, t, e)
         x = x.float() + positions
